@@ -7,23 +7,45 @@ from torch import nn
 from mobileNetV3 import Block, SeModule, hswish
 
 class FeatureNet(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, input_pixel=64) -> None:
         super(FeatureNet, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=24, kernel_size=7, padding=3, stride=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
-            nn.Conv2d(in_channels=24, out_channels=64, kernel_size=5, padding=2, stride=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=0),   
-            nn.Conv2d(in_channels=64, out_channels=96, kernel_size=3, padding=1, stride=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding=1, stride=1),  
-            nn.ReLU(),
-            nn.Conv2d(in_channels=96, out_channels=64, kernel_size=3, padding=1, stride=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
-        )
+        if input_pixel == 64:
+            self.features = nn.Sequential(
+                nn.Conv2d(in_channels=1, out_channels=24, kernel_size=7, padding=3, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+                nn.Conv2d(in_channels=24, out_channels=64, kernel_size=5, padding=2, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+                nn.Conv2d(in_channels=64, out_channels=96, kernel_size=3, padding=1, stride=1),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding=1, stride=1),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=96, out_channels=64, kernel_size=3, padding=1, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+            )
+        elif input_pixel == 128:
+            self.features = nn.Sequential(
+                nn.Conv2d(in_channels=1, out_channels=24, kernel_size=7, padding=3, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+                nn.Conv2d(in_channels=24, out_channels=24, kernel_size=7, padding=3, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+                nn.Conv2d(in_channels=24, out_channels=64, kernel_size=5, padding=2, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+                nn.Conv2d(in_channels=64, out_channels=96, kernel_size=3, padding=1, stride=1),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding=1, stride=1),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=96, out_channels=64, kernel_size=3, padding=1, stride=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=0),
+            )
+
+
     
     def forward(self, x):
         return self.features(x)
@@ -47,24 +69,35 @@ class mobileNetV3BlockNet(nn.Module):
         return out
 
 class ClassiFilerNet(nn.Module):
-    def __init__(self, extractor="mobileNet"):
+    def __init__(self, extractor="mobileNet", input_pixel=64):
         super(ClassiFilerNet, self).__init__()
 
         if extractor == "mobileNet":
             self.input_1 = mobileNetV3BlockNet()
             self.input_2 = mobileNetV3BlockNet()
         else:
-            self.input_1 = FeatureNet()
-            self.input_2 = FeatureNet()
+            print("To use FeatureNet")
+            self.input_1 = FeatureNet(input_pixel)
+            self.input_2 = FeatureNet(input_pixel)
 
-        self.matric_network = nn.Sequential(
-            nn.Linear(in_features=6272, out_features=1024),
-            nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=1024),
-            nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=2),
-            nn.Softmax()
-        )
+        if input_pixel == 128:
+            self.matric_network = nn.Sequential(
+                nn.Linear(in_features=6272, out_features=1024),
+                nn.ReLU(),
+                nn.Linear(in_features=1024, out_features=1024),
+                nn.ReLU(),
+                nn.Linear(in_features=1024, out_features=2),
+                nn.Softmax()
+            )
+        elif input_pixel == 64:
+            self.matric_network = nn.Sequential(
+                nn.Linear(in_features=6272, out_features=1024),
+                nn.ReLU(),
+                nn.Linear(in_features=1024, out_features=1024),
+                nn.ReLU(),
+                nn.Linear(in_features=1024, out_features=2),
+                nn.Softmax()
+            )
     
     def forward(self, x):
         """

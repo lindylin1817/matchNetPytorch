@@ -12,11 +12,13 @@ import time
 import torchvision.transforms as transforms
 import numpy as np
 import shutil
+from match_dataset import MatchDataset
 
+INPUT_PIXEL = 128
 parser = argparse.ArgumentParser(description='PyTorch matchNet Training')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=200, type=int, metavar='N',
+parser.add_argument('--epochs', default=2000, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -25,7 +27,7 @@ parser.add_argument('-b', '--batch-size', default=256, type=int,
                     help='mini-batch size (default: 256), this is the total '
                          'batch size of all GPUs on the current node when '
                          'using Data Parallel or Distributed Data Parallel')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.0001, type=float,
                     metavar='LR', help='initial learning rate', dest='lr')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
@@ -34,6 +36,7 @@ parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                     dest='weight_decay')
 parser.add_argument('-p', '--print-freq', default=10, type=int,
                     metavar='N', help='print frequency (default: 10)')
+CUDA_DEVICE = 1
 
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
@@ -48,6 +51,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 def main():
     args = parser.parse_args()
+    input_pixel = INPUT_PIXEL
     
     class preporcessing(nn.Module):
         def __init__(self):
@@ -60,44 +64,53 @@ def main():
         def __repr__(self):
             pass
 
-    dataset = datasets.PhotoTour(root="./data/phototour", name="liberty", train=False, download=True,
-        transform = transforms.Compose([
-        preporcessing(),
-        #transforms.Normalize(mean=0.4437, std=0.2019)
-         ]))
+#    dataset = datasets.PhotoTour(root="./data/phototour", name="liberty", train=False, download=True,
+#        transform = transforms.Compose([
+#        preporcessing(),
+#        #transforms.Normalize(mean=0.4437, std=0.2019)
+#         ]))
+#    print(dataset.labels[1:10])
+#    print(dataset.matches[1:10])
 
-    train_loader = torch.utils.data.DataLoader(
-        dataset, 
-        args.batch_size, 
-        shuffle=True,
-        num_workers=4, 
-        pin_memory=True)
-    
-    valdataset = datasets.PhotoTour(root="./data/phototour", name="notredame", train=False, download=True,
-        transform = transforms.Compose([
-        preporcessing()
-        ])
-    )
+
+#    valdataset = datasets.PhotoTour(root="./data/phototour", name="notredame", train=False, download=True,
+#        transform = transforms.Compose([
+#        preporcessing()
+#        ])
+#    )
+#    print(valdataset.data.shape)
+    valdataset = MatchDataset(root_a="./img/test/tempA/", root_b="./img/test/tempB/",
+                              input_pixel=INPUT_PIXEL)
+
     val_loader = torch.utils.data.DataLoader(
-        dataset, 
+        valdataset,
         args.batch_size, 
         shuffle=True,
         num_workers=4, 
         pin_memory=True) 
 
-    torch.cuda.set_device(0)
-    model = ClassiFilerNet("alexNet")
-    model = model.cuda(0)
+    torch.cuda.set_device(CUDA_DEVICE)
+    model = ClassiFilerNet("alexNet", input_pixel)
+#    model = ClassiFilerNet("mobileNet")
+    model = model.cuda(CUDA_DEVICE)
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda(0)
+    criterion = nn.CrossEntropyLoss().cuda(CUDA_DEVICE)
 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+#    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+#                                momentum=args.momentum,
+#                                weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     bestAcc = 0.0
     for epoch in range(0, args.epochs):
-
+        dataset = MatchDataset(root_a="./img/train/tempA/", root_b="./img/train/tempB/",
+                               input_pixel=INPUT_PIXEL)
+        train_loader = torch.utils.data.DataLoader(
+            dataset,
+            args.batch_size,
+            shuffle=True,
+            num_workers=4,
+            pin_memory=True)
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
@@ -144,12 +157,16 @@ def evaluate(model, valLoader):
         for i, (data1, data2, matches) in enumerate(valLoader):
 
             batch = data1.shape[0]
-            data1 = data1.cuda(0)
-            data2 = data2.cuda(0)
+            data1 = data1.cuda(CUDA_DEVICE)
+            data2 = data2.cuda(CUDA_DEVICE)
             matches = matches.numpy()
 
             out = model((data1, data2)).cpu().numpy()
+#            print("out is ==========")
+#            print(out)
             prediction = np.array([x[1] > 0.55 for x in out])
+#            print(prediction)
+#            print(matches)
             count = np.sum(prediction == matches)
             accuracy.update(count/batch)
 
@@ -172,11 +189,15 @@ def train(model, trainLoader, criterion, optimizer, epoch):
         #test
         #print("data1:{}".format(data1))
 
-        data1 = data1.cuda(0)
-        data2 = data2.cuda(0)
-        matches = matches.cuda(0)
+        data1 = data1.cuda(CUDA_DEVICE)
+        data2 = data2.cuda(CUDA_DEVICE)
+        matches = matches.cuda(CUDA_DEVICE)
 
         out = model((data1, data2))
+#        print(data1.shape)
+#        print(data2.shape)
+#        print(matches.shape)
+#        print(out.shape)
 
         #test
         #print("data shape:{}".format(data1.shape))
