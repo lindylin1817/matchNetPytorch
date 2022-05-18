@@ -79,6 +79,15 @@ def main():
 #        ])
 #    )
 #    print(valdataset.data.shape)
+    dataset = MatchDataset(root_a="./img/train/tempA/", root_b="./img/train/tempB/",
+                           input_pixel=INPUT_PIXEL)
+    train_loader = torch.utils.data.DataLoader(
+        dataset,
+        args.batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True)
+
     valdataset = MatchDataset(root_a="./img/test/tempA/", root_b="./img/test/tempB/",
                               input_pixel=INPUT_PIXEL)
 
@@ -103,25 +112,14 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     bestAcc = 0.0
     for epoch in range(0, args.epochs):
-        dataset = MatchDataset(root_a="./img/train/tempA/", root_b="./img/train/tempB/",
-                               input_pixel=INPUT_PIXEL)
-        train_loader = torch.utils.data.DataLoader(
-            dataset,
-            args.batch_size,
-            shuffle=True,
-            num_workers=4,
-            pin_memory=True)
-        adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
         train(model, train_loader, criterion, optimizer, epoch)
-
+        adjust_learning_rate(optimizer, epoch, args)
         if epoch % 10 == 0:
             acc = evaluate(model, valLoader=val_loader)
-
             is_best = acc > bestAcc
             bestAcc = max(bestAcc, acc)
-
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': "matchNet",
@@ -129,7 +127,26 @@ def main():
                 'best_acc1': bestAcc,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
-    
+        if epoch % 30 == 0:
+            dataset = MatchDataset(root_a="./img/train/tempA/", root_b="./img/train/tempB/",
+                                   input_pixel=INPUT_PIXEL)
+            train_loader = torch.utils.data.DataLoader(
+                dataset,
+                args.batch_size,
+                shuffle=True,
+                num_workers=4,
+                pin_memory=True)
+        if epoch % 50 == 0:
+            valdataset = MatchDataset(root_a="./img/test/tempA/", root_b="./img/test/tempB/",
+                                      input_pixel=INPUT_PIXEL)
+            val_loader = torch.utils.data.DataLoader(
+                valdataset,
+                args.batch_size,
+                shuffle=True,
+                num_workers=4,
+                pin_memory=True)
+
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
